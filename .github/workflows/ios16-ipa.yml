@@ -1,0 +1,120 @@
+name: ios16-ipa
+
+on:
+  push:
+    paths:
+      - .ios16-trigger
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build OpenBot iOS (deployment target 16.0, unsigned)
+    runs-on: macos-15
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        run: |
+          set -e
+          XC="$(ls -d /Applications/Xcode_26.3*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -z "$XC" ]; then XC="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"; fi
+          echo "using $XC"
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install workspace dependencies
+        run: bun install
+
+      - name: Patch iOS deployment target to 16.0
+        working-directory: apps/mobile
+        run: |
+          node -e '
+            const fs=require("fs");
+            const p="app.json";
+            const d=JSON.parse(fs.readFileSync(p,"utf8"));
+            const pl=d.expo.plugins;
+            let f=pl.find(x=>Array.isArray(x)&&x[0]==="expo-build-properties");
+            if(f){ f[1].ios = f[1].ios || {}; f[1].ios.deploymentTarget="16.0"; }
+            else { pl.push(["expo-build-properties",{ios:{deploymentTarget:"16.0"}}]); }
+            fs.writeFileSync(p, JSON.stringify(d,null,2));
+            console.log("deploymentTarget=16.0 patched");
+          '
+
+      - name: Expo prebuild (ios)
+        working-directory: apps/mobile
+        env:
+          CI: "1"
+        run: bunx expo prebuild --platform ios --clean
+
+      - name: CocoaPods install
+        working-directory: apps/mobile/ios
+        env:
+          CI: "1"
+        run: pod install --repo-update
+
+      - name: Build (no codesign)
+        working-directory: apps/mobile/ios
+        run: |
+          set -euo pipefail
+          WS=$(ls -d *.xcworkspace | head -1)
+          echo "workspace=$WS"
+          xcodebuild -workspace "$WS" -list -json > /tmp/schemes.json
+          SCHEME=$(node -e 'const j=require("/tmp/schemes.json");const s=j.workspace.schemes.filter(x=>!/Extension|Widgets|Notification/i.test(x));console.log(s[0])')
+          echo "scheme=$SCHEME"
+          set +e
+          xcodebuild \
+            -workspace "$WS" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$RUNNER_TEMP/DD" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            build > /tmp/build.log 2>&1
+          code=$?
+          tail -n 220 /tmp/build.log
+          exit $code
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          APP=$(find "$RUNNER_TEMP/DD/Build/Products/Release-iphoneos" -maxdepth 1 -name '*.app' | head -1)
+          if [ -z "$APP" ]; then echo "no .app built"; ls -la "$RUNNER_TEMP/DD/Build/Products/Release-iphoneos" || true; exit 1; fi
+          echo "app=$APP"
+          /usr/libexec/PlistBuddy -c "Print :MinimumOSVersion" "$APP/Info.plist" || true
+          mkdir -p "$RUNNER_TEMP/pkg/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/pkg/Payload/"
+          cd "$RUNNER_TEMP/pkg"
+          zip -qry OpenBot-ios16-unsigned.ipa Payload
+          ls -lh OpenBot-ios16-unsigned.ipa
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openbot-ios16-ipa
+          path: ${{ runner.temp }}/pkg/OpenBot-ios16-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Attach to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=ios16-build
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "OpenBot iOS 16.0 unsigned build" --notes "Unsigned IPA built from source with deployment target 16.0" || true
+          gh release upload "$TAG" "$RUNNER_TEMP/pkg/OpenBot-ios16-unsigned.ipa" --clobber
