@@ -74,6 +74,17 @@ jobs:
           grep -n "platform :ios" Podfile
           sed -i '' "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 16.0;/g" *.xcodeproj/project.pbxproj
           grep -c "IPHONEOS_DEPLOYMENT_TARGET = 16.0" *.xcodeproj/project.pbxproj
+
+      - name: Lower podspec platforms to 16.0
+        working-directory: apps/mobile
+        run: |
+          set -e
+          ROOT=../..
+          echo "patch podspecs..."
+          find "$ROOT/node_modules" -name '*.podspec' -print0 | xargs -0 sed -i '' 's/16\.4/16.0/g'
+          echo "remaining 16.4 podspecs:"
+          grep -rl '16\.4' --include='*.podspec' "$ROOT/node_modules" | head -10 || true
+          echo "done"
       - name: CocoaPods install
         working-directory: apps/mobile/ios
         env:
