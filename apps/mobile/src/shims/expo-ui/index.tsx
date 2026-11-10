@@ -42,10 +42,16 @@ export function Host({ children, style, ...rest }: AnyProps) {
   );
 }
 
+function asBool(value: any): boolean {
+  if (typeof value === "boolean") return value;
+  if (value && typeof value === "object" && "value" in value) return Boolean(value.value);
+  return Boolean(value);
+}
+
 export function Switch({ value, onValueChange, onChange, disabled, style }: AnyProps) {
   return (
     <RNSwitch
-      value={!!readValue(value)}
+      value={asBool(value)}
       disabled={!!disabled}
       onValueChange={(next) => {
         onValueChange?.(next);
