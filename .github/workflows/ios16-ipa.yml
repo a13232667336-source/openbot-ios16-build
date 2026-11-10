@@ -53,17 +53,32 @@ jobs:
             console.log("deploymentTarget=16.0 patched");
           '
 
+      - name: Bypass expo-build-properties version floor
+        working-directory: apps/mobile
+        run: |
+          set -e
+          F=../../node_modules/expo-build-properties/build/pluginConfig.js
+          test -f "$F" || F=node_modules/expo-build-properties/build/pluginConfig.js
+          node -e 'const fs=require("fs");const p=process.argv[1];let s=fs.readFileSync(p,"utf8");s=s.split("16.4").join("16.0");fs.writeFileSync(p,s);console.log("floor patched",p);' "$F"
       - name: Expo prebuild (ios)
         working-directory: apps/mobile
         env:
           CI: "1"
         run: bunx expo prebuild --platform ios --clean
 
+      - name: Force deployment target 16.0
+        working-directory: apps/mobile/ios
+        run: |
+          set -e
+          sed -i '' "s/platform :ios, .*/platform :ios, '16.0'/" Podfile
+          grep -n "platform :ios" Podfile
+          sed -i '' "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 16.0;/g" *.xcodeproj/project.pbxproj
+          grep -c "IPHONEOS_DEPLOYMENT_TARGET = 16.0" *.xcodeproj/project.pbxproj
       - name: CocoaPods install
         working-directory: apps/mobile/ios
         env:
           CI: "1"
-        run: pod install --repo-update
+        run: RCT_USE_PREBUILT_RNCORE=0 pod install --repo-update
 
       - name: Build (no codesign)
         working-directory: apps/mobile/ios
