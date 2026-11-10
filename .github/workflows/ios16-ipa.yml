@@ -41,7 +41,7 @@ jobs:
       - name: Force-remove @expo/ui from node_modules
         run: |
           set -e
-          rm -rf node_modules/@expo/ui apps/mobile/node_modules/@expo/ui
+          rm -rf node_modules/@expo/ui node_modules/expo-widgets apps/mobile/node_modules/@expo/ui apps/mobile/node_modules/expo-widgets
           if [ -d node_modules/@expo/ui ]; then echo "still present"; exit 1; fi
           echo "@expo/ui removed from node_modules"
           grep -rn '"@expo/ui"' apps/mobile/package.json && exit 1 || echo "not in package.json"
@@ -88,7 +88,7 @@ jobs:
           set -e
           ROOT=../..
           echo "patch podspecs..."
-          find "$ROOT/node_modules" -name '*.podspec' -print0 | xargs -0 sed -i '' 's/16\.4/16.0/g'
+          find "$ROOT/node_modules" "$PWD" -name '*.podspec' -print0 | xargs -0 sed -i '' 's/16\.4/16.0/g'
           echo "remaining 16.4 podspecs:"
           grep -rl '16\.4' --include='*.podspec' "$ROOT/node_modules" | head -10 || true
           echo "done"
