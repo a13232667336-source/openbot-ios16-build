@@ -98,8 +98,16 @@ jobs:
           WS=$(ls -d *.xcworkspace | head -1)
           echo "workspace=$WS"
           xcodebuild -workspace "$WS" -list -json > /tmp/schemes.json
-          SCHEME=$(node -e 'const j=require("/tmp/schemes.json");const s=j.workspace.schemes.filter(x=>!/Extension|Widgets|Notification/i.test(x));console.log(s[0])')
-          echo "scheme=$SCHEME"
+          echo "all schemes:"; node -e 'const j=require("/tmp/schemes.json");console.log(j.workspace.schemes.join(", "))'
+          SCHEME=$(node -e '
+            const j=require("/tmp/schemes.json");
+            const all=j.workspace.schemes;
+            const exact=all.find(s=>s==="OpenBot");
+            if (exact) { console.log(exact); process.exit(0); }
+            const app=all.find(s=>!/^(boost|Pods|React|Expo|RN)/i.test(s) && !/Extension|Widgets|Notification|Tests/i.test(s));
+            console.log(app || all[0]);
+          ')
+          echo "chosen scheme=$SCHEME"
           set +e
           xcodebuild \
             -workspace "$WS" \
