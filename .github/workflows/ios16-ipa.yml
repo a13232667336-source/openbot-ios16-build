@@ -38,14 +38,14 @@ jobs:
       - name: Install workspace dependencies
         run: bun install
 
-            - name: Force-remove @expo/ui from node_modules
+      - name: Force-remove @expo/ui from node_modules
         run: |
           set -e
           rm -rf node_modules/@expo/ui apps/mobile/node_modules/@expo/ui
           if [ -d node_modules/@expo/ui ]; then echo "still present"; exit 1; fi
           echo "@expo/ui removed from node_modules"
           grep -rn '"@expo/ui"' apps/mobile/package.json && exit 1 || echo "not in package.json"
-- name: Patch iOS deployment target to 16.0
+      - name: Patch iOS deployment target to 16.0
         working-directory: apps/mobile
         run: |
           node -e '
