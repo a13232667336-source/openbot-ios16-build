@@ -123,8 +123,27 @@ export function Slider({ value, onValueChange, style, ...rest }: AnyProps) {
   );
 }
 
-export function useNativeState<T>(initial: T): [T, (next: T | ((prev: T) => T)) => void] {
-  return React.useState(initial) as any;
+/**
+ * SwiftUI `@State`-style binding: the app reads `binding.value` and calls `binding.set(next)`, and
+ * passes the binding itself as `value` to `TextInput`. Keep that shape.
+ */
+export function useNativeState<T>(initial: T) {
+  const [value, setValue] = React.useState<T>(initial);
+  const binding = React.useRef<any>(null);
+  if (!binding.current) {
+    binding.current = {
+      get value() {
+        return value;
+      },
+      set(next: T) {
+        setValue(next);
+      },
+    } as any;
+  }
+  const ref = binding.current as { value: T; set: (next: T) => void };
+  Object.defineProperty(ref, "value", { get: () => value, configurable: true });
+  ref.set = (next: T) => setValue(next);
+  return ref;
 }
 
 export default {
