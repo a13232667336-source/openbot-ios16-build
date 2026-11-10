@@ -1,0 +1,15 @@
+name: probe
+on:
+  push:
+    paths:
+      - .probe-trigger
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: macos-15
+    steps:
+      - run: |
+          uname -m; sw_vers; df -h /
+          ls /Applications | grep -i xcode || true
+          xcodebuild -version || true
+          xcrun --sdk iphoneos --show-sdk-version || true
