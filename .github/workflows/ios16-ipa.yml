@@ -85,6 +85,16 @@ jobs:
           echo "remaining 16.4 podspecs:"
           grep -rl '16\.4' --include='*.podspec' "$ROOT/node_modules" | head -10 || true
           echo "done"
+      - name: Set ExpoUI pod to iOS 26 (SwiftUI glass APIs)
+        working-directory: apps/mobile
+        run: |
+          set -e
+          ROOT=../..
+          ls "$ROOT/node_modules/@expo/ui" | head -20
+          P=$(ls "$ROOT"/node_modules/@expo/ui/*.podspec | head -1)
+          echo "podspec=$P"
+          sed -i '' 's/16\.0/26.0/g' "$P"
+          grep -n "platforms" "$P" || true
       - name: CocoaPods install
         working-directory: apps/mobile/ios
         env:
