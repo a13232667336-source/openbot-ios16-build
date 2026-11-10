@@ -17,6 +17,15 @@ fs.mkdirSync(config.fileMapCacheDirectory, { recursive: true });
 // embeds the absolute path, so a sibling worktree's cached output would point DOM components at
 // files outside this project.
 config.cacheVersion = [config.cacheVersion, __dirname].filter(Boolean).join(":");
+const EXPO_UI_SHIM = path.resolve(__dirname, "src/shims/expo-ui");
+const expoUiShims = new Map([
+  ["@expo/ui", path.join(EXPO_UI_SHIM, "index.tsx")],
+  ["@expo/ui/swift-ui", path.join(EXPO_UI_SHIM, "swift-ui.tsx")],
+  ["@expo/ui/swift-ui/modifiers", path.join(EXPO_UI_SHIM, "modifiers.js")],
+  ["@expo/ui/community/menu", path.join(EXPO_UI_SHIM, "community-menu.tsx")],
+  ["@expo/ui/community/datetime-picker", path.join(EXPO_UI_SHIM, "community-datetime-picker.tsx")],
+]);
+
 const nativeModuleShims = new Map([
   ["@solidjs/web", path.resolve(__dirname, "src/shims/solidjs-web.ts")],
   ["solid-js", path.resolve(__dirname, "src/shims/solid-js.ts")],
@@ -30,6 +39,10 @@ const bloubAssetFolder = path.join(path.dirname(require.resolve("@norbert_bodzio
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   const shim = nativeModuleShims.get(moduleName);
   if (shim) return { filePath: shim, type: "sourceFile" };
+  if (moduleName === "@expo/ui" || moduleName.startsWith("@expo/ui/")) {
+    const mapped = expoUiShims.get(moduleName);
+    return { filePath: mapped ?? path.join(EXPO_UI_SHIM, "index.tsx"), type: "sourceFile" };
+  }
   if (moduleName.startsWith(BLOUB_ASSETS)) {
     return context.resolveRequest(
       context,
